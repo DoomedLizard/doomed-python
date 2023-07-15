@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+
+# Set defaults
+argv_only='false'
+debug='false'
+force='false'
+name='diagram'
+open='true'
+
+function getHelp() {
+cat << HELP
+
+Usage: gen_diagram [options]
+
+Generates and opens a diagram.
+
+Options:
+  -h, --help             Display this message.
+  -f, --force            Overwrite any existing diagram files.
+  --name <diagram name>  The file name for the diagram. The files generated will
+                         be <diagram name>.dot and <diagram name>.svg.
+                         Default value: 'diagram'
+  --no-open              Do not open the diagram after generating it.
+
+HELP
+}
+
+function die() {
+  echo "$@" >&2
+  exit 1
+}
+
+# Parse the command-line argument vector
+while [[ $# -gt 0 ]]; do
+  # Figure out what the current argument means
+  case "$1" in
+    -h | --help)
+      getHelp
+      exit 0
+      ;;
+    -f | --force)
+      force='true'
+      ;;
+    --name)
+      # Set name to the next argument and throw away the current argument
+      name="$2"
+      shift
+      ;;
+    --no-open)
+      open='false'
+      ;;
+    --debug)
+      debug='true'
+      ;;
+    --argv-only)
+      debug=true
+      argv_only=true
+      ;;
+    *)
+      echo "Invalid argument: '$1'" >&2
+      getHelp >&2
+      exit 1
+  esac
+
+  # Throw away the current argument
+  shift
+done
+
+text="$name.dot"
+image="$name.svg"
+
+if [[ "$debug" == 'true' ]]; then
+  # Dump all the variables' values
+  echo "force   = '$force'"
+  echo "name    = '$name'"
+  echo "  image = '$image'"
+  echo "  text  = '$text'"
+  echo "open    = '$open'"
+fi
+
+# Make sure they gave us a real name
+[[ -z "$name" ]] && die "Invalid name: '$name'"
+
+# Die if one of the files we're creating exists (and force is off)
+if [[ "$force" == 'false' ]]; then
+  [[ -f "$text" ]] && die "File already exists: '$text'"
+  [[ -f "$image" ]] && die "File already exists: '$image'"
+fi
+
+# Quit if we're just parsing the command line
+[[ "$argv_only" == 'true' ]] && exit 0
+
+# If we made it this far, nuke the files from orbit just to be sure
+rm -f "$text" "$image"
+
+# Run the python program that generates the diagram text
+./gen_diagram.py > "$text" || die "Failed to generate $text"
+
+# Convert the diagram text to an image
+dot -Tsvg -o"$image" "$text" || die "Failed to generate $image"
+
+# Open the diagram so we can see it!
+[[ "$open" == 'true' ]] && open "$image"
